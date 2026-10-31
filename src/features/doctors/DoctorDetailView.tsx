@@ -185,6 +185,7 @@ export function DoctorDetailView({ doctorId }: DoctorDetailViewProps) {
           {isAdmin && (
             <Link
               href={`/doctors/${doctor.id}/edit`}
+              prefetch={false}
               data-testid="btn-edit-doctor"
               className="inline-flex h-10 px-4 items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm transition-colors border border-line bg-white font-medium text-ink hover:bg-canvas self-start sm:self-auto cursor-pointer"
             >
@@ -323,6 +324,7 @@ export function DoctorDetailView({ doctorId }: DoctorDetailViewProps) {
           {isAdmin && (
             <Link
               href={`/doctors/${doctor.id}/patients/new`}
+              prefetch={false}
               data-testid="btn-assign-patient"
               className="inline-flex h-10 px-4 items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm transition-colors bg-brand-600 font-semibold text-white hover:bg-brand-700 cursor-pointer"
             >
@@ -560,6 +562,7 @@ export function DoctorDetailView({ doctorId }: DoctorDetailViewProps) {
                         <div className="flex items-center justify-end gap-1">
                           <Link
                             href={`/patients/${pat.id}/edit`}
+                            prefetch={false}
                             role="button"
                             data-testid={`btn-edit-patient-${pat.id}`}
                             aria-label={`Edit ${pat.name}`}

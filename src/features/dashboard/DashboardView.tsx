@@ -377,6 +377,7 @@ export function DashboardView() {
               <li key={item.condition}>
                 <Link
                   href={`/patients?condition=${encodeURIComponent(item.key)}`}
+                  prefetch={false}
                   className="group -m-2 block rounded-lg p-2 transition-colors hover:bg-canvas"
                 >
                   <span className="flex items-center gap-2 text-sm text-muted group-hover:text-ink">
@@ -496,6 +497,7 @@ export function DashboardView() {
               <li key={doc.doctorId}>
                 <Link
                   href={`/doctors/${doc.doctorId}`}
+                  prefetch={false}
                   className="group block rounded-lg px-2 py-2 transition-colors hover:bg-canvas"
                 >
                   <span className="flex items-baseline justify-between gap-3 text-sm">

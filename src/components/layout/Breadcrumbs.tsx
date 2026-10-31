@@ -98,6 +98,7 @@ export function Breadcrumbs() {
               <li>
                 <Link
                   href={crumb.href || '#'}
+                  prefetch={false}
                   className="text-muted transition-colors hover:text-ink"
                 >
                   {crumb.label}

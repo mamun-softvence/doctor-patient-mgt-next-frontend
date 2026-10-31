@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useMemo, useCallback } from 'react';
+import { useState, useEffect, useTransition, useMemo, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useCurrentUser } from '@/features/auth/hooks';
@@ -124,14 +124,35 @@ export function PatientsView() {
   // URL update helper
   const updateUrl = useCallback(
     (updates: Record<string, string | number | null | undefined>) => {
+      const current = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : searchParams;
+      const newQuery = buildQueryString(current, updates);
+      const targetPath = `/patients${newQuery}`;
+
+      if (typeof window !== 'undefined' && `${window.location.pathname}${window.location.search}` === targetPath) {
+        return;
+      }
+
       startTransition(() => {
-        const current = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : searchParams;
-        const newQuery = buildQueryString(current, updates);
-        router.replace(`/patients${newQuery}`);
+        router.replace(targetPath);
       });
     },
     [router, searchParams]
   );
+
+  const [searchQuery, setSearchQuery] = useState(filters.search);
+
+  useEffect(() => {
+    setSearchQuery(filters.search);
+  }, [filters.search]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery !== filters.search) {
+        updateUrl({ search: searchQuery });
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery, filters.search, updateUrl]);
 
   const handleDatePresetChange = useCallback(
     (preset: string) => {
@@ -298,8 +319,8 @@ export function PatientsView() {
                 <input
                   id="q"
                   type="search"
-                  value={filters.search}
-                  onChange={(e) => updateUrl({ search: e.target.value })}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search name, phone or diagnosis"
                   data-testid="patient-search-input"
                   className="block h-10 w-full rounded-lg border border-line bg-white px-3 pl-9 text-sm text-ink placeholder:text-muted/80 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/15"
@@ -691,7 +712,7 @@ export function PatientsView() {
                       {renderConditionBadge(pat)}
                     </td>
                     <td className="whitespace-nowrap px-3 py-3">
-                      <Link href={`/doctors/${pat.doctorId}`} className="text-ink hover:text-brand-700 hover:underline">
+                      <Link href={`/doctors/${pat.doctorId}`} prefetch={false} className="text-ink hover:text-brand-700 hover:underline">
                         {pat.doctorName}
                       </Link>
                     </td>
@@ -703,6 +724,7 @@ export function PatientsView() {
                         <div className="flex justify-end gap-0.5">
                           <Link
                             href={`/patients/${pat.id}/edit`}
+                            prefetch={false}
                             role="button"
                             aria-label={`Edit ${pat.name}`}
                             data-testid={`btn-edit-patient-${pat.id}`}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useMemo, useCallback } from 'react';
+import { useState, useEffect, useTransition, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCurrentUser } from '@/features/auth/hooks';
@@ -77,17 +77,38 @@ export function DoctorsView() {
   // URL update helper
   const updateUrl = useCallback(
     (updates: Record<string, string | number | null | undefined>) => {
+      const current =
+        typeof window !== 'undefined'
+          ? new URLSearchParams(window.location.search)
+          : searchParams;
+      const newQuery = buildQueryString(current, updates);
+      const targetPath = `/doctors${newQuery}`;
+
+      if (typeof window !== 'undefined' && `${window.location.pathname}${window.location.search}` === targetPath) {
+        return;
+      }
+
       startTransition(() => {
-        const current =
-          typeof window !== 'undefined'
-            ? new URLSearchParams(window.location.search)
-            : searchParams;
-        const newQuery = buildQueryString(current, updates);
-        router.replace(`/doctors${newQuery}`);
+        router.replace(targetPath);
       });
     },
     [router, searchParams]
   );
+
+  const [searchQuery, setSearchQuery] = useState(filters.search);
+
+  useEffect(() => {
+    setSearchQuery(filters.search);
+  }, [filters.search]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery !== filters.search) {
+        updateUrl({ search: searchQuery, page: 1 });
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery, filters.search, updateUrl]);
 
   const handleDatePresetChange = useCallback(
     (preset: string) => {
@@ -214,6 +235,7 @@ export function DoctorsView() {
           <div className="flex shrink-0 items-center gap-2">
             <Link
               href="/doctors/new"
+              prefetch={false}
               data-testid="btn-add-doctor"
               className="inline-flex h-10 px-4 items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm transition-colors bg-brand-600 font-semibold text-white hover:bg-brand-700 cursor-pointer"
             >
@@ -263,8 +285,8 @@ export function DoctorsView() {
                 <input
                   id="q"
                   type="search"
-                  value={filters.search}
-                  onChange={(e) => updateUrl({ search: e.target.value, page: 1 })}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search name, email, phone or hospital"
                   data-testid="doctor-search-input"
                   className="block h-10 w-full rounded-lg border bg-white px-3 text-sm text-ink placeholder:text-muted/80 focus:outline-none focus:ring-4 border-line focus:border-brand-500 focus:ring-brand-500/15 pl-9"
@@ -510,6 +532,7 @@ export function DoctorsView() {
                           <div className="min-w-0">
                             <Link
                               href={`/doctors/${doc.id}`}
+                              prefetch={false}
                               className="block truncate font-medium text-ink group-hover:text-brand-700"
                             >
                               {doc.name}
