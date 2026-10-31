@@ -24,8 +24,8 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  cacheComponents: true,
-  partialPrefetching: true,
+  cacheComponents: false,
+  partialPrefetching: false,
   turbopack: {
     root: path.resolve(__dirname, '..'),
     rules: {
