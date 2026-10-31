@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCurrentUser } from '@/features/auth/hooks';
@@ -60,102 +60,124 @@ export function DoctorsView() {
   const allPatients = useMockStore((state) => state.patients);
 
   // Extract unique specialties and hospitals for dropdowns
-  const specialties = Array.from(new Set(allDoctors.map((d) => d.specialty))).sort();
-  const departments = Array.from(new Set(allDoctors.map((d) => d.department))).sort();
-  const hospitals = Array.from(
-    new Set(allDoctors.map((d) => d.hospital || 'General Hospital'))
-  ).sort();
+  const specialties = useMemo(
+    () => Array.from(new Set(allDoctors.map((d) => d.specialty))).sort(),
+    [allDoctors]
+  );
+  const departments = useMemo(
+    () => Array.from(new Set(allDoctors.map((d) => d.department))).sort(),
+    [allDoctors]
+  );
+  const hospitals = useMemo(
+    () => Array.from(new Set(allDoctors.map((d) => d.hospital || 'General Hospital'))).sort(),
+    [allDoctors]
+  );
   const hospitalsCount = hospitals.length;
 
   // URL update helper
-  const updateUrl = (updates: Record<string, string | number | null | undefined>) => {
-    startTransition(() => {
-      const current =
-        typeof window !== 'undefined'
-          ? new URLSearchParams(window.location.search)
-          : searchParams;
-      const newQuery = buildQueryString(current, updates);
-      router.replace(`/doctors${newQuery}`);
-    });
-  };
+  const updateUrl = useCallback(
+    (updates: Record<string, string | number | null | undefined>) => {
+      startTransition(() => {
+        const current =
+          typeof window !== 'undefined'
+            ? new URLSearchParams(window.location.search)
+            : searchParams;
+        const newQuery = buildQueryString(current, updates);
+        router.replace(`/doctors${newQuery}`);
+      });
+    },
+    [router, searchParams]
+  );
 
-  const handleDatePresetChange = (preset: string) => {
-    setDatePreset(preset);
-    if (preset === 'all') {
-      setFromDate('');
-      setToDate('');
-      updateUrl({ from: '', to: '', page: 1 });
-    } else if (preset === '7d' || preset === '30d' || preset === '90d') {
-      const range = getDatePresetRange(preset as '7d' | '30d');
-      setFromDate(range.from);
-      setToDate(range.to);
-      updateUrl({ from: range.from, to: range.to, page: 1 });
-    }
-  };
+  const handleDatePresetChange = useCallback(
+    (preset: string) => {
+      setDatePreset(preset);
+      if (preset === 'all') {
+        setFromDate('');
+        setToDate('');
+        updateUrl({ from: '', to: '', page: 1 });
+      } else if (preset === '7d' || preset === '30d' || preset === '90d') {
+        const range = getDatePresetRange(preset as '7d' | '30d');
+        setFromDate(range.from);
+        setToDate(range.to);
+        updateUrl({ from: range.from, to: range.to, page: 1 });
+      }
+    },
+    [updateUrl]
+  );
 
-  const handleResetFilters = () => {
+  const handleResetFilters = useCallback(() => {
     setDatePreset('all');
     setFromDate('');
     setToDate('');
     setSelectedHospital('');
     router.replace('/doctors');
-  };
+  }, [router]);
 
   // Filter doctors based on URL parameters & local selectors
-  const filteredDoctors = allDoctors.filter((doc) => {
-    if (filters.search) {
-      const q = filters.search.toLowerCase();
-      const matchName = doc.name.toLowerCase().includes(q);
-      const matchEmail = doc.email.toLowerCase().includes(q);
-      const matchSpecialty = doc.specialty.toLowerCase().includes(q);
-      const matchPhone = doc.phone ? doc.phone.toLowerCase().includes(q) : false;
-      const matchHosp = doc.hospital ? doc.hospital.toLowerCase().includes(q) : false;
-      if (!matchName && !matchEmail && !matchSpecialty && !matchPhone && !matchHosp) return false;
-    }
-    if (filters.specialty && doc.specialty !== filters.specialty) {
-      return false;
-    }
-    if (filters.department && doc.department !== filters.department) {
-      return false;
-    }
-    if (selectedHospital && (doc.hospital || 'General Hospital') !== selectedHospital) {
-      return false;
-    }
-    if (filters.from) {
-      const docDate = doc.createdAt ? doc.createdAt.split('T')[0] : '2024-01-01';
-      if (docDate < filters.from) return false;
-    }
-    if (filters.to) {
-      const docDate = doc.createdAt ? doc.createdAt.split('T')[0] : '2024-01-01';
-      if (docDate > filters.to) return false;
-    }
-    return true;
-  });
+  const filteredDoctors = useMemo(() => {
+    return allDoctors.filter((doc) => {
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        const matchName = doc.name.toLowerCase().includes(q);
+        const matchEmail = doc.email.toLowerCase().includes(q);
+        const matchSpecialty = doc.specialty.toLowerCase().includes(q);
+        const matchPhone = doc.phone ? doc.phone.toLowerCase().includes(q) : false;
+        const matchHosp = doc.hospital ? doc.hospital.toLowerCase().includes(q) : false;
+        if (!matchName && !matchEmail && !matchSpecialty && !matchPhone && !matchHosp) return false;
+      }
+      if (filters.specialty && doc.specialty !== filters.specialty) {
+        return false;
+      }
+      if (filters.department && doc.department !== filters.department) {
+        return false;
+      }
+      if (selectedHospital && (doc.hospital || 'General Hospital') !== selectedHospital) {
+        return false;
+      }
+      if (filters.from) {
+        const docDate = doc.createdAt ? doc.createdAt.split('T')[0] : '2024-01-01';
+        if (docDate < filters.from) return false;
+      }
+      if (filters.to) {
+        const docDate = doc.createdAt ? doc.createdAt.split('T')[0] : '2024-01-01';
+        if (docDate > filters.to) return false;
+      }
+      return true;
+    });
+  }, [allDoctors, filters.search, filters.specialty, filters.department, filters.from, filters.to, selectedHospital]);
 
   // Sort doctors
-  const sortedDoctors = [...filteredDoctors].sort((a, b) => {
-    const aPatients = allPatients.filter((p) => p.doctorId === a.id).length;
-    const bPatients = allPatients.filter((p) => p.doctorId === b.id).length;
+  const sortedDoctors = useMemo(() => {
+    const patientCountsByDoctor = new Map<string, number>();
+    for (const p of allPatients) {
+      patientCountsByDoctor.set(p.doctorId, (patientCountsByDoctor.get(p.doctorId) || 0) + 1);
+    }
 
-    if (sortBy === 'name-asc') {
-      return a.name.localeCompare(b.name);
-    }
-    if (sortBy === 'name-desc') {
-      return b.name.localeCompare(a.name);
-    }
-    if (sortBy === 'most-patients') {
-      return bPatients - aPatients;
-    }
-    if (sortBy === 'oldest') {
+    return [...filteredDoctors].sort((a, b) => {
+      const aPatients = patientCountsByDoctor.get(a.id) || 0;
+      const bPatients = patientCountsByDoctor.get(b.id) || 0;
+
+      if (sortBy === 'name-asc') {
+        return a.name.localeCompare(b.name);
+      }
+      if (sortBy === 'name-desc') {
+        return b.name.localeCompare(a.name);
+      }
+      if (sortBy === 'most-patients') {
+        return bPatients - aPatients;
+      }
+      if (sortBy === 'oldest') {
+        const dateA = a.createdAt || '2026-01-01';
+        const dateB = b.createdAt || '2026-01-01';
+        return dateA.localeCompare(dateB);
+      }
+      // Default: newest first
       const dateA = a.createdAt || '2026-01-01';
       const dateB = b.createdAt || '2026-01-01';
-      return dateA.localeCompare(dateB);
-    }
-    // Default: newest first
-    const dateA = a.createdAt || '2026-01-01';
-    const dateB = b.createdAt || '2026-01-01';
-    return dateB.localeCompare(dateA);
-  });
+      return dateB.localeCompare(dateA);
+    });
+  }, [filteredDoctors, allPatients, sortBy]);
 
   // Pagination
   const totalCount = sortedDoctors.length;

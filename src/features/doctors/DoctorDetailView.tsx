@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useCurrentUser } from '@/features/auth/hooks';
 import { useMockStore } from '@/lib/mock/store';
@@ -91,8 +91,40 @@ export function DoctorDetailView({ doctorId }: DoctorDetailViewProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  const doctor = doctors.find((d) => d.id === doctorId);
-  const assignedPatients = patients.filter((p) => p.doctorId === doctorId);
+  const doctor = useMemo(() => doctors.find((d) => d.id === doctorId), [doctors, doctorId]);
+  const assignedPatients = useMemo(
+    () => patients.filter((p) => p.doctorId === doctorId),
+    [patients, doctorId]
+  );
+
+  const initials = useMemo(() => (doctor ? getInitials(doctor.name) : 'DR'), [doctor]);
+
+  // Filter assigned patients
+  const filteredPatients = useMemo(() => {
+    return assignedPatients.filter((pat) => {
+      if (patientSearch) {
+        const q = patientSearch.toLowerCase();
+        const matchName = pat.name.toLowerCase().includes(q);
+        const matchCond = pat.condition ? pat.condition.toLowerCase().includes(q) : false;
+        const matchDiag = pat.diagnosis ? pat.diagnosis.toLowerCase().includes(q) : false;
+        if (!matchName && !matchCond && !matchDiag) return false;
+      }
+      if (patientCondition) {
+        const statusMatch = pat.status.toLowerCase() === patientCondition.toLowerCase();
+        const condMatch = pat.condition ? pat.condition.toLowerCase().includes(patientCondition.toLowerCase()) : false;
+        if (!statusMatch && !condMatch) return false;
+      }
+      return true;
+    });
+  }, [assignedPatients, patientSearch, patientCondition]);
+
+  const criticalCount = useMemo(
+    () =>
+      assignedPatients.filter((p) =>
+        (p.status || '').toLowerCase().includes('crit')
+      ).length,
+    [assignedPatients]
+  );
 
   if (!doctor) {
     return (
@@ -111,34 +143,11 @@ export function DoctorDetailView({ doctorId }: DoctorDetailViewProps) {
     );
   }
 
-  const initials = getInitials(doctor.name);
-
-  // Filter assigned patients
-  const filteredPatients = assignedPatients.filter((pat) => {
-    if (patientSearch) {
-      const q = patientSearch.toLowerCase();
-      const matchName = pat.name.toLowerCase().includes(q);
-      const matchCond = pat.condition ? pat.condition.toLowerCase().includes(q) : false;
-      const matchDiag = pat.diagnosis ? pat.diagnosis.toLowerCase().includes(q) : false;
-      if (!matchName && !matchCond && !matchDiag) return false;
-    }
-    if (patientCondition) {
-      const statusMatch = pat.status.toLowerCase() === patientCondition.toLowerCase();
-      const condMatch = pat.condition ? pat.condition.toLowerCase().includes(patientCondition.toLowerCase()) : false;
-      if (!statusMatch && !condMatch) return false;
-    }
-    return true;
-  });
-
   const totalPatients = filteredPatients.length;
   const totalPages = Math.max(1, Math.ceil(totalPatients / rowsPerPage));
   const page = Math.min(currentPage, totalPages);
   const startIndex = (page - 1) * rowsPerPage;
   const paginatedPatients = filteredPatients.slice(startIndex, startIndex + rowsPerPage);
-
-  const criticalCount = assignedPatients.filter((p) =>
-    (p.status || '').toLowerCase().includes('crit')
-  ).length;
 
   return (
     <div className="space-y-6 min-w-0 max-w-full">

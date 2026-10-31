@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useMemo, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useCurrentUser } from '@/features/auth/hooks';
@@ -122,113 +122,126 @@ export function PatientsView() {
   const allDoctors = useMockStore((state) => state.doctors);
 
   // URL update helper
-  const updateUrl = (updates: Record<string, string | number | null | undefined>) => {
-    startTransition(() => {
-      const current = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : searchParams;
-      const newQuery = buildQueryString(current, updates);
-      router.replace(`/patients${newQuery}`);
-    });
-  };
+  const updateUrl = useCallback(
+    (updates: Record<string, string | number | null | undefined>) => {
+      startTransition(() => {
+        const current = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : searchParams;
+        const newQuery = buildQueryString(current, updates);
+        router.replace(`/patients${newQuery}`);
+      });
+    },
+    [router, searchParams]
+  );
 
-  const handleDatePresetChange = (preset: string) => {
-    setDatePreset(preset);
-    if (preset === 'all') {
-      setFromDate('');
-      setToDate('');
-      updateUrl({ from: '', to: '' });
-    } else if (preset === '7d' || preset === '30d') {
-      const range = getDatePresetRange(preset);
-      setFromDate(range.from);
-      setToDate(range.to);
-      updateUrl({ from: range.from, to: range.to });
-    }
-  };
+  const handleDatePresetChange = useCallback(
+    (preset: string) => {
+      setDatePreset(preset);
+      if (preset === 'all') {
+        setFromDate('');
+        setToDate('');
+        updateUrl({ from: '', to: '' });
+      } else if (preset === '7d' || preset === '30d') {
+        const range = getDatePresetRange(preset);
+        setFromDate(range.from);
+        setToDate(range.to);
+        updateUrl({ from: range.from, to: range.to });
+      }
+    },
+    [updateUrl]
+  );
 
-  const handleResetFilters = () => {
+  const handleResetFilters = useCallback(() => {
     setDatePreset('all');
     setFromDate('');
     setToDate('');
     setGenderFilter('');
     router.replace('/patients');
-  };
+  }, [router]);
 
   // Filter patients based on URL search params & controls
-  const filteredPatients = allPatients.filter((pat) => {
-    if (filters.search) {
-      const q = filters.search.toLowerCase();
-      const matchName = pat.name.toLowerCase().includes(q);
-      const matchCondition = pat.condition.toLowerCase().includes(q);
-      const matchDoctor = pat.doctorName.toLowerCase().includes(q);
-      const matchPhone = pat.phone ? pat.phone.toLowerCase().includes(q) : false;
-      const matchDiagnosis = pat.diagnosis ? pat.diagnosis.toLowerCase().includes(q) : false;
-      if (!matchName && !matchCondition && !matchDoctor && !matchPhone && !matchDiagnosis) return false;
-    }
+  const filteredPatients = useMemo(() => {
+    return allPatients.filter((pat) => {
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        const matchName = pat.name.toLowerCase().includes(q);
+        const matchCondition = pat.condition.toLowerCase().includes(q);
+        const matchDoctor = pat.doctorName.toLowerCase().includes(q);
+        const matchPhone = pat.phone ? pat.phone.toLowerCase().includes(q) : false;
+        const matchDiagnosis = pat.diagnosis ? pat.diagnosis.toLowerCase().includes(q) : false;
+        if (!matchName && !matchCondition && !matchDoctor && !matchPhone && !matchDiagnosis) return false;
+      }
 
-    if (filters.status) {
-      const s = filters.status.toLowerCase();
-      const classified = classifyPatientCondition(pat).toLowerCase();
-      const patStatus = (pat.status || '').toLowerCase();
-      const patCond = (pat.condition || '').toLowerCase();
-      const matchStatus =
-        patStatus === s ||
-        (s === 'recovered' && (patStatus === 'recovered' || classified === 'recovering' || classified === 'discharged')) ||
-        (s === 'recovering' && (classified === 'recovering' || patStatus === 'recovered'));
-      const matchClassified = classified === s;
-      const matchCond = patCond.includes(s);
-      if (!matchStatus && !matchClassified && !matchCond) return false;
-    }
+      if (filters.status) {
+        const s = filters.status.toLowerCase();
+        const classified = classifyPatientCondition(pat).toLowerCase();
+        const patStatus = (pat.status || '').toLowerCase();
+        const patCond = (pat.condition || '').toLowerCase();
+        const matchStatus =
+          patStatus === s ||
+          (s === 'recovered' && (patStatus === 'recovered' || classified === 'recovering' || classified === 'discharged')) ||
+          (s === 'recovering' && (classified === 'recovering' || patStatus === 'recovered'));
+        const matchClassified = classified === s;
+        const matchCond = patCond.includes(s);
+        if (!matchStatus && !matchClassified && !matchCond) return false;
+      }
 
-    if (genderFilter) {
-      if (pat.gender?.toLowerCase() !== genderFilter.toLowerCase()) return false;
-    }
+      if (genderFilter) {
+        if (pat.gender?.toLowerCase() !== genderFilter.toLowerCase()) return false;
+      }
 
-    if (filters.doctorId && pat.doctorId !== filters.doctorId) {
-      return false;
-    }
+      if (filters.doctorId && pat.doctorId !== filters.doctorId) {
+        return false;
+      }
 
-    if (filters.condition && !pat.condition.toLowerCase().includes(filters.condition.toLowerCase())) {
-      return false;
-    }
+      if (filters.condition && !pat.condition.toLowerCase().includes(filters.condition.toLowerCase())) {
+        return false;
+      }
 
-    // Dual Match date filtering: matches either admissionDate OR createdAt within range
-    const admittedDate = pat.admitted ? pat.admitted.split('T')[0] : '';
-    const createdDate = pat.createdAt ? pat.createdAt.split('T')[0] : '';
+      // Dual Match date filtering: matches either admissionDate OR createdAt within range
+      const admittedDate = pat.admitted ? pat.admitted.split('T')[0] : '';
+      const createdDate = pat.createdAt ? pat.createdAt.split('T')[0] : '';
 
-    if (filters.from) {
-      const matchFrom = (admittedDate && admittedDate >= filters.from) || (createdDate && createdDate >= filters.from);
-      if (!matchFrom) return false;
-    }
-    if (filters.to) {
-      const matchTo = (admittedDate && admittedDate <= filters.to) || (createdDate && createdDate <= filters.to);
-      if (!matchTo) return false;
-    }
+      if (filters.from) {
+        const matchFrom = (admittedDate && admittedDate >= filters.from) || (createdDate && createdDate >= filters.from);
+        if (!matchFrom) return false;
+      }
+      if (filters.to) {
+        const matchTo = (admittedDate && admittedDate <= filters.to) || (createdDate && createdDate <= filters.to);
+        if (!matchTo) return false;
+      }
 
-    return true;
-  });
+      return true;
+    });
+  }, [allPatients, filters.search, filters.status, filters.doctorId, filters.condition, filters.from, filters.to, genderFilter]);
 
   // Apply Sorting
-  const sortedPatients = [...filteredPatients].sort((a, b) => {
-    if (sortBy === 'newest') {
-      const dateA = a.admitted || a.admissionDate || a.createdAt || '';
-      const dateB = b.admitted || b.admissionDate || b.createdAt || '';
-      return dateB.localeCompare(dateA);
-    }
-    if (sortBy === 'oldest') {
-      const dateA = a.admitted || a.admissionDate || a.createdAt || '';
-      const dateB = b.admitted || b.admissionDate || b.createdAt || '';
-      return dateA.localeCompare(dateB);
-    }
-    if (sortBy === 'name-asc') {
-      return a.name.localeCompare(b.name);
-    }
-    if (sortBy === 'age-desc') {
-      return b.age - a.age;
-    }
-    if (sortBy === 'age-asc') {
-      return a.age - b.age;
-    }
-    return 0;
-  });
+  const sortedPatients = useMemo(() => {
+    return [...filteredPatients].sort((a, b) => {
+      if (sortBy === 'newest') {
+        const dateA = a.admitted || a.admissionDate || a.createdAt || '';
+        const dateB = b.admitted || b.admissionDate || b.createdAt || '';
+        return dateB.localeCompare(dateA);
+      }
+      if (sortBy === 'oldest') {
+        const dateA = a.admitted || a.admissionDate || a.createdAt || '';
+        const dateB = b.admitted || b.admissionDate || b.createdAt || '';
+        return dateA.localeCompare(dateB);
+      }
+      if (sortBy === 'name-asc') {
+        return a.name.localeCompare(b.name);
+      }
+      if (sortBy === 'name-desc') {
+        return b.name.localeCompare(a.name);
+      }
+      if (sortBy === 'age-desc') {
+        return b.age - a.age;
+      }
+      if (sortBy === 'age-asc') {
+        return a.age - b.age;
+      }
+      return 0;
+    });
+  }, [filteredPatients, sortBy]);
 
   // Pagination
   const totalCount = sortedPatients.length;

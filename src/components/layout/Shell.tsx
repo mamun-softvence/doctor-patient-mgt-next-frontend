@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCurrentUser, useLogout } from '@/features/auth/hooks';
+import { useLogout } from '@/features/auth/hooks';
 import { useMockStore } from '@/lib/mock/store';
 import { clearSessionCookie } from '@/lib/auth/cookies';
 import { Breadcrumbs } from './Breadcrumbs';
@@ -13,7 +13,6 @@ import { MobileNavDrawer } from './MobileNavDrawer';
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { data: me } = useCurrentUser();
   const doctors = useMockStore((state) => state.doctors);
   const patients = useMockStore((state) => state.patients);
   const [isCollapsed, setIsCollapsed] = useState(false);

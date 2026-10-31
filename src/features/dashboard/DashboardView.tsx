@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import {
   AreaChart,
@@ -22,19 +22,21 @@ export function DashboardView() {
   const [customRange, setCustomRange] = useState<{ from: string; to: string } | null>(null);
   const [isCustomOpen, setIsCustomOpen] = useState(false);
 
-  // TanStack Query API hooks (active when backend is connected)
+  // Memoize API range params to maintain stable query key & options identity
   const apiRange = trendRange === '12m' ? '90d' : trendRange;
-  const { data: summaryData } = useDashboardSummary({
-    range: apiRange,
-    from: customRange?.from,
-    to: customRange?.to,
-  });
+  const rangeParams = useMemo(
+    () => ({
+      range: apiRange,
+      from: customRange?.from,
+      to: customRange?.to,
+    }),
+    [apiRange, customRange?.from, customRange?.to]
+  );
+
+  // TanStack Query API hooks (active when backend is connected)
+  const { data: summaryData } = useDashboardSummary(rangeParams);
   const { data: breakdownData } = useBreakdown();
-  const { data: admissionsData } = useAdmissions({
-    range: apiRange,
-    from: customRange?.from,
-    to: customRange?.to,
-  });
+  const { data: admissionsData } = useAdmissions(rangeParams);
   const { data: topDoctorsData } = useTopDoctors(10);
 
   // Authoritative fallback mock store (Rule 7)
@@ -153,13 +155,15 @@ export function DashboardView() {
     return result;
   }, [currentAdmissions, previousAdmissions, admissionsTrend, trendRange]);
 
-  const handleApplyCustom = (from: string, to: string) => {
+  const handleApplyCustom = useCallback((from: string, to: string) => {
     if (from || to) {
       setCustomRange({ from, to });
     } else {
       setCustomRange(null);
     }
-  };
+  }, []);
+
+  const handleCloseCustom = useCallback(() => setIsCustomOpen(false), []);
 
   return (
     <div className="space-y-6">
@@ -240,7 +244,7 @@ export function DashboardView() {
 
           {isCustomOpen && (
             <CustomDatePopover
-              onClose={() => setIsCustomOpen(false)}
+              onClose={handleCloseCustom}
               onApply={handleApplyCustom}
               initialFrom={customRange?.from || ''}
               initialTo={customRange?.to || ''}
